@@ -121,29 +121,49 @@ function deduplicateResults(results) {
 // Kingfisher rules cache
 let kingfisherRulesCache = null;
 
+console.log('[rep+] Secrets module loaded');
+
 /**
  * Loads Kingfisher rules (lazy-loaded, cached)
  * Loads from local YAML files in the rules/ directory
  */
 async function loadKingfisherRules() {
+    console.log('[rep+] Secrets: loadKingfisherRules called, cache exists:', !!kingfisherRulesCache);
     if (kingfisherRulesCache) {
+        console.log('[rep+] Secrets: Returning cached rules:', kingfisherRulesCache.rules?.length || 0);
         return kingfisherRulesCache;
     }
     
     try {
-        const { 
-            loadAllKingfisherRulesFromLocal, 
-            scanWithKingfisherRules 
-        } = await import('./kingfisher-rules.js');
+        console.log('[rep+] Secrets: Importing kingfisher-rules module...');
+        const kingfisherModule = await import('./kingfisher-rules.js');
+        console.log('[rep+] Secrets: Module imported, exports:', Object.keys(kingfisherModule));
+        
+        const loadAllKingfisherRulesFromLocal = kingfisherModule.loadAllKingfisherRulesFromLocal;
+        const scanWithKingfisherRules = kingfisherModule.scanWithKingfisherRules;
+        
+        console.log('[rep+] Secrets: loadAllKingfisherRulesFromLocal:', typeof loadAllKingfisherRulesFromLocal);
+        console.log('[rep+] Secrets: scanWithKingfisherRules:', typeof scanWithKingfisherRules);
+        
+        if (!scanWithKingfisherRules) {
+            console.error('[rep+] Secrets: ERROR - scanWithKingfisherRules is not exported from kingfisher-rules.js!');
+            kingfisherRulesCache = { rules: [], scanWithKingfisherRules: null };
+            return kingfisherRulesCache;
+        }
         
         // Auto-discover and load all YAML files from rules/ directory
         // This will try to load a _manifest.json file first, or auto-discover common filenames
+        console.log('[rep+] Secrets: Loading rules from local files...');
         const rules = await loadAllKingfisherRulesFromLocal();
+        console.log('[rep+] Secrets: Loaded', rules.length, 'rules from local files');
         
         kingfisherRulesCache = { rules, scanWithKingfisherRules };
+        console.log('[rep+] Secrets: Cached', rules.length, 'rules and scanner function');
         return kingfisherRulesCache;
     } catch (e) {
-        console.error('Failed to load Kingfisher rules:', e);
+        console.error('[rep+] Secrets: Failed to load Kingfisher rules:', e);
+        console.error('[rep+] Secrets: Error message:', e.message);
+        console.error('[rep+] Secrets: Error stack:', e.stack);
         kingfisherRulesCache = { rules: [], scanWithKingfisherRules: null };
         return kingfisherRulesCache;
     }
@@ -161,21 +181,28 @@ export function scanContent(content, url) {
  * Scans content with Kingfisher rules (async)
  */
 export async function scanContentWithKingfisher(content, url) {
+    console.log('[rep+] Secrets: scanContentWithKingfisher called for:', url.substring(0, 100), 'content length:', content.length);
     const results = [];
     if (!content) {
+        console.warn('[rep+] Secrets: No content provided');
         return results;
     }
 
     try {
+        console.log('[rep+] Secrets: Loading Kingfisher rules...');
         const { rules, scanWithKingfisherRules } = await loadKingfisherRules();
+        console.log('[rep+] Secrets: Loaded', rules?.length || 0, 'rules, scanner function:', scanWithKingfisherRules ? 'available' : 'missing');
         if (!rules || rules.length === 0 || !scanWithKingfisherRules) {
+            console.warn('[rep+] Secrets: No rules or scanner function available!');
             return results;
         }
         
+        console.log('[rep+] Secrets: Running Kingfisher scanner...');
         const kingfisherResults = scanWithKingfisherRules(content, rules, {
             getEntropy: getEntropy,
             checkPatternRequirements: true
         });
+        console.log('[rep+] Secrets: Kingfisher scanner returned', kingfisherResults?.length || 0, 'raw results');
         
         // Convert Kingfisher results to our format
         for (const result of kingfisherResults) {
@@ -228,11 +255,15 @@ export async function scanContentWithKingfisher(content, url) {
                 }
 
                 // Only include high-confidence results
-                if (confidence < 60) continue;
+                if (confidence < 60) {
+                    console.log(`[rep+] Secrets: Skipping low confidence secret (${confidence}):`, result.match.substring(0, 50));
+                    continue;
+                }
             
             // Use ruleName for a cleaner, human-readable type
             // Fallback to ruleId if ruleName is not available
             const typeName = result.ruleName || result.ruleId || 'Unknown Secret';
+            console.log(`[rep+] Secrets: ✅ Found secret:`, typeName, 'match:', result.match.substring(0, 50), 'confidence:', confidence);
 
                 results.push({
                     file: url,
@@ -245,14 +276,19 @@ export async function scanContentWithKingfisher(content, url) {
                 ruleId: result.ruleId
                 });
             }
+            
+            console.log(`[rep+] Secrets: scanContentWithKingfisher complete for ${url.substring(0, 100)}, found ${results.length} secrets after filtering`);
         } catch (e) {
-        console.warn('Error scanning with Kingfisher rules:', e);
+        console.error('[rep+] Secrets: Error scanning with Kingfisher rules:', e);
+        console.error('[rep+] Secrets: Error message:', e.message);
+        console.error('[rep+] Secrets: Error stack:', e.stack);
     }
     
     return results;
 }
 
 export async function scanForSecrets(requests, onProgress, onSecretFound) {
+    console.log('[rep+] Secrets: Starting scanForSecrets with', requests.length, 'requests');
     const results = [];
     const seenSecrets = new Set(); // For deduplication
     let processed = 0;
@@ -275,6 +311,7 @@ export async function scanForSecrets(requests, onProgress, onSecretFound) {
                        mime.includes('application/javascript');
             
             if (isJS) {
+                console.log('[rep+] Secrets: Processing JS file:', url.substring(0, 100));
             try {
                     // Use stored responseBody if available, otherwise try getContent
                     let content = null;
@@ -313,9 +350,12 @@ export async function scanForSecrets(requests, onProgress, onSecretFound) {
                     }
 
                 if (content) {
+                        console.log('[rep+] Secrets: Content retrieved, length:', content.length);
                         // Scan with Kingfisher rules only
                         try {
+                            console.log('[rep+] Secrets: Calling scanContentWithKingfisher for:', url.substring(0, 100));
                             const kingfisherSecrets = await scanContentWithKingfisher(content, req.request.url);
+                            console.log('[rep+] Secrets: Found', kingfisherSecrets.length, 'secrets in:', url.substring(0, 100));
                             
                             // Process each secret found
                             for (const secret of kingfisherSecrets) {
@@ -334,7 +374,9 @@ export async function scanForSecrets(requests, onProgress, onSecretFound) {
                                 }
                 }
                         } catch (e) {
-                            console.warn('Error scanning with Kingfisher:', e);
+                            console.error('[rep+] Secrets: Error scanning with Kingfisher:', e);
+                            console.error('[rep+] Secrets: Error message:', e.message);
+                            console.error('[rep+] Secrets: Error stack:', e.stack);
                         }
                     }
                 } catch (err) {

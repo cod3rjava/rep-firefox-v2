@@ -646,6 +646,7 @@ export function scanWithKingfisherRules(content, rules, options = {}) {
         getEntropy = null // Pass entropy function from secrets.js
     } = options;
     
+    let totalMatches = 0;
     for (const rule of rules) {
         if (!rule.compiledRegex) {
             continue;
@@ -654,11 +655,15 @@ export function scanWithKingfisherRules(content, rules, options = {}) {
         try {
             const regex = rule.compiledRegex;
             let match;
+            const resultsBeforeRule = results.length;
+            let ruleMatches = 0;
             
             // Reset regex lastIndex for global regex
             regex.lastIndex = 0;
             
             while ((match = regex.exec(content)) !== null) {
+                ruleMatches++;
+                totalMatches++;
                 const matchedStr = match[0];
                 const matchIndex = match.index;
                 
@@ -698,11 +703,19 @@ export function scanWithKingfisherRules(content, rules, options = {}) {
                     validation: rule.validation || null
                 });
             }
+            
+            const resultsAfterRule = results.length;
+            const passedFilters = resultsAfterRule - resultsBeforeRule;
+            if (ruleMatches > 0) {
+                console.log(`[rep+] Kingfisher: Rule ${rule.id || rule.name} found ${ruleMatches} matches, ${passedFilters} passed filters`);
+            }
         } catch (e) {
-            console.warn(`Error scanning with rule ${rule.id}:`, e);
+            console.error(`[rep+] Kingfisher: Error scanning with rule ${rule.id || rule.name}:`, e);
+            console.error(`[rep+] Kingfisher: Error stack:`, e.stack);
         }
     }
     
+    console.log(`[rep+] Kingfisher: scanWithKingfisherRules complete. Scanned ${rules.length} rules, found ${totalMatches} total matches, ${results.length} passed all filters`);
     return results;
 }
 
@@ -754,19 +767,28 @@ export async function loadKingfisherRulesFromLocalFiles(filenames) {
  * To use manifest: Copy _manifest.json.example to _manifest.json and list your files
  */
 export async function loadAllKingfisherRulesFromLocal() {
+    console.log('[rep+] Kingfisher: loadAllKingfisherRulesFromLocal called');
+    console.log('[rep+] Kingfisher: browserAPI.runtime:', browserAPI.runtime);
+    
     // First, try to load a manifest file that lists all available rules
     // RECOMMENDED: Create rules/_manifest.json to explicitly list your rule files
     try {
         const manifestUrl = browserAPI.runtime.getURL('rules/_manifest.json');
+        console.log('[rep+] Kingfisher: Trying to load manifest from:', manifestUrl);
         const manifestResponse = await fetch(manifestUrl);
+        console.log('[rep+] Kingfisher: Manifest response status:', manifestResponse.status, manifestResponse.ok);
         if (manifestResponse.ok) {
             const manifest = await manifestResponse.json();
+            console.log('[rep+] Kingfisher: Manifest loaded, files count:', manifest.files?.length || 0);
             if (manifest.files && Array.isArray(manifest.files)) {
-                return await loadKingfisherRulesFromLocalFiles(manifest.files);
+                const rules = await loadKingfisherRulesFromLocalFiles(manifest.files);
+                console.log('[rep+] Kingfisher: Loaded', rules.length, 'rules from manifest');
+                return rules;
             }
         }
     } catch (e) {
-        // Manifest doesn't exist, continue with auto-discovery
+        console.warn('[rep+] Kingfisher: Failed to load manifest, falling back to auto-discovery:', e);
+        console.warn('[rep+] Kingfisher: Error:', e.message);
     }
     
     // Fallback: Auto-discovery by trying common rule filenames
@@ -791,17 +813,21 @@ export async function loadAllKingfisherRulesFromLocal() {
     const allRules = [];
     
     // Try to load each file - missing files will fail gracefully
+    console.log('[rep+] Kingfisher: Auto-discovering', commonRuleFiles.length, 'common rule files...');
     for (const filename of commonRuleFiles) {
         try {
             const rules = await loadKingfisherRulesFromLocalFile(filename);
             if (rules.length > 0) {
+                console.log('[rep+] Kingfisher: Loaded', rules.length, 'rules from', filename);
                 allRules.push(...rules);
             }
         } catch (e) {
+            console.warn(`[rep+] Kingfisher: Failed to load ${filename}:`, e.message);
             // File doesn't exist or failed to load, skip silently
         }
     }
     
+    console.log('[rep+] Kingfisher: Total rules loaded:', allRules.length);
     return allRules;
 }
 
