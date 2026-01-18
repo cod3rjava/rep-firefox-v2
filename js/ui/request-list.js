@@ -1,6 +1,7 @@
 // Request List Rendering Module
 import { state } from '../core/state.js';
 import { filterState } from '../core/state/filters.js';
+import { requestActions } from '../core/state/actions.js';
 import { formatTime } from '../core/utils/format.js';
 import { escapeHtml } from '../core/utils/dom.js';
 import { getHostname } from '../core/utils/network.js';
@@ -688,6 +689,9 @@ export function filterRequests() {
     const items = requestList.querySelectorAll('.request-item');
     let visibleCount = 0;
     let regexError = false;
+    
+    // Track seen signatures for duplicate detection (only if hide duplicates is enabled)
+    const seenSignatures = new Set();
 
     items.forEach((item, index) => {
         const request = state.requests[parseInt(item.dataset.index)];
@@ -860,49 +864,42 @@ export function filterRequests() {
         // Check hide duplicates filter
         let matchesHideDuplicates = true;
         if (filterState.hideDuplicates) {
-            // Build signature for current request (method + URL + body if POST/PUT/PATCH)
-            const method = request.request.method.toUpperCase();
-            const url = request.request.url;
-            let body = '';
-            if (['POST', 'PUT', 'PATCH'].includes(method) && request.request.postData?.text) {
-                body = request.request.postData.text.trim();
-            }
-            const currentRequestSignature = `${method}|${url}|${body}`;
+            // Build signature for current request using the same logic as actions.isDuplicate
+            // But without pageUrl, so duplicates are detected across different pages/tabs
+            const method = (request.request.method || 'GET').toUpperCase().trim();
+            const url = (request.request.url || '').trim();
+            const body = (request.request.postData && request.request.postData.text) 
+                ? String(request.request.postData.text).trim() 
+                : '';
+            // Normalize headers (excludes dynamic headers, sorts them)
+            const headers = requestActions.normalizeHeaders(request.request.headers);
+            const currentRequestSignature = `${method}|${url}|${headers}|${body}`;
             
-            // Check if we've already shown a request with the same signature (scan backwards for first occurrence)
-            let isDuplicate = false;
-            for (let i = 0; i < index; i++) {
-                const prevItem = items[i];
-                const prevIndex = parseInt(prevItem?.dataset.index);
-                if (prevIndex < 0 || prevIndex >= state.requests.length) continue;
-                
-                const prevRequest = state.requests[prevIndex];
-                if (!prevRequest || !prevRequest.request) continue;
-                
-                // Build signature for previous request
-                const prevMethod = prevRequest.request.method.toUpperCase();
-                const prevUrl = prevRequest.request.url;
-                let prevBody = '';
-                if (['POST', 'PUT', 'PATCH'].includes(prevMethod) && prevRequest.request.postData?.text) {
-                    prevBody = prevRequest.request.postData.text.trim();
-                }
-                const prevSignature = `${prevMethod}|${prevUrl}|${prevBody}`;
-                
-                // If signatures match, this is a duplicate
-                if (currentRequestSignature === prevSignature) {
-                    isDuplicate = true;
-                    break;
-                }
+            // Check if we've already seen this signature in a visible request
+            if (seenSignatures.has(currentRequestSignature)) {
+                matchesHideDuplicates = false; // Hide this duplicate
+            } else {
+                // This is a new signature, we'll add it to seenSignatures after we confirm it's visible
+                matchesHideDuplicates = true;
             }
-            
-            // Hide duplicates - show only first occurrence
-            matchesHideDuplicates = !isDuplicate;
         }
 
         // All filters work together with AND logic
         if (matchesSearch && matchesFilter && matchesStar && matchesColor && matchesTimeline && matchesHideDuplicates) {
             item.style.display = 'flex';
             visibleCount++;
+            
+            // If hide duplicates is enabled and this item is visible, add its signature to seenSignatures
+            if (filterState.hideDuplicates) {
+                const method = (request.request.method || 'GET').toUpperCase().trim();
+                const url = (request.request.url || '').trim();
+                const body = (request.request.postData && request.request.postData.text) 
+                    ? String(request.request.postData.text).trim() 
+                    : '';
+                const headers = requestActions.normalizeHeaders(request.request.headers);
+                const signature = `${method}|${url}|${headers}|${body}`;
+                seenSignatures.add(signature);
+            }
         } else {
             item.style.display = 'none';
         }
