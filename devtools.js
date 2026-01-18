@@ -19,62 +19,47 @@ try {
         alert('ERROR: devtools.panels API not available!');
     } else {
         console.log('STEP 2: All checks passed, creating panel...');
-        console.log('Calling panels.create with:', {
-            title: "Rep+",
-            iconPath: undefined,
-            pagePath: "panel.html"
-        });
         
-        // Firefox: panels.create returns a Promise, not a callback
-        // Also, iconPath must be undefined (not null) if no icon
-        const createPanelPromise = browserAPI.devtools.panels.create(
-            "Rep+",           // title
-            undefined,        // iconPath (must be undefined or string, not null)
-            "panel.html"      // pagePath
-        );
+        // Firefox: panels.create() signature (from MDN):
+        // browser.devtools.panels.create(title, iconPath, pagePath)
+        // Returns: Promise<ExtensionPanel>
+        // All 3 parameters are required:
+        //   - title: string
+        //   - iconPath: string (can be empty string "" if no icon)
+        //   - pagePath: string
+        console.log('Calling panels.create with correct Firefox signature...');
+        console.log('Parameters: title="Rep+", iconPath="", pagePath="panel.html"');
         
-        if (createPanelPromise && typeof createPanelPromise.then === 'function') {
-            // Firefox: Promise-based API
-            console.log('Using Promise-based API (Firefox)');
-            createPanelPromise.then(function(panel) {
-                console.log('STEP 3: Panel created successfully!');
-                console.log('Panel object:', panel);
-                
-                // Test panel events
-                if (panel && panel.onShown) {
+        // Try with empty string for icon (MDN says this is valid)
+        browserAPI.devtools.panels.create(
+            "Rep+",        // title: string (required)
+            "",            // iconPath: string (empty string is valid per MDN)
+            "panel.html"   // pagePath: string (required)
+        ).then(function(panel) {
+            console.log('STEP 3: ✅ Panel created successfully!');
+            console.log('Panel object:', panel);
+            console.log('Panel properties:', Object.keys(panel || {}));
+            
+            // Test panel events
+            if (panel) {
+                if (panel.onShown) {
                     panel.onShown.addListener(function(window) {
-                        console.log('Panel shown!');
+                        console.log('✅ Panel shown!');
                     });
                 }
-            }).catch(function(error) {
-                console.error('ERROR creating panel (Promise rejected):', error);
-                alert('ERROR creating panel: ' + error.message);
-            });
-        } else {
-            // Chrome: Callback-based API (fallback)
-            console.log('Using callback-based API (Chrome)');
-            browserAPI.devtools.panels.create(
-                "Rep+",
-                undefined,
-                "panel.html",
-                function(panel) {
-                    if (browserAPI.runtime.lastError) {
-                        const error = browserAPI.runtime.lastError.message;
-                        console.error('ERROR creating panel:', error);
-                        alert('ERROR creating panel: ' + error);
-                    } else {
-                        console.log('STEP 3: Panel created successfully!');
-                        console.log('Panel object:', panel);
-                        
-                        if (panel && panel.onShown) {
-                            panel.onShown.addListener(function(window) {
-                                console.log('Panel shown!');
-                            });
-                        }
-                    }
+                
+                if (panel.onHidden) {
+                    panel.onHidden.addListener(function() {
+                        console.log('Panel hidden');
+                    });
                 }
-            );
-        }
+            }
+        }).catch(function(error) {
+            console.error('❌ ERROR creating panel:', error);
+            console.error('Error message:', error.message);
+            console.error('Error name:', error.name);
+            console.error('Error stack:', error.stack);
+        });
     }
 } catch (e) {
     console.error('EXCEPTION in devtools.js:', e);

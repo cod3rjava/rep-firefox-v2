@@ -4,6 +4,12 @@
     "version": "0.0.1",
     "description": "Minimal Firefox DevTools extension test",
     "devtools_page": "devtools.html",
+    "permissions": [
+        "devtools"
+    ],
+    "icons": {
+        "48": "icons/icon.png"
+    },
     "browser_specific_settings": {
         "gecko": {
             "id": "rep-plus-test@cod3rjava.local",
