@@ -2,6 +2,9 @@
 import { actions } from '../core/state.js';
 import { events, EVENT_NAMES } from '../core/events.js';
 
+// Browser API compatibility for Firefox
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 export function initMultiTabCapture() {
     const multiTabBtn = document.getElementById('multi-tab-btn');
     let backgroundPort = null;
@@ -34,7 +37,7 @@ export function initMultiTabCapture() {
                     const req = msg.data;
 
                     // Skip requests from the current inspected tab (handled by setupNetworkListener)
-                    if (chrome.devtools && browserAPI.devtools.inspectedWindow && req.tabId === browserAPI.devtools.inspectedWindow.tabId) return;
+                    if (browserAPI.devtools && browserAPI.devtools.inspectedWindow && req.tabId === browserAPI.devtools.inspectedWindow.tabId) return;
 
                     // Filter out non-HTTP requests
                     if (!req.url || !req.url.startsWith('http')) return;
