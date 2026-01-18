@@ -1,0 +1,12 @@
+# Exclude rules directory - contains example secrets for pattern matching
+# These are detection rules, not actual secrets, but GitHub push protection flags them
+rules/
+
+# Development files
+*.log
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.xpi
+*.zip
