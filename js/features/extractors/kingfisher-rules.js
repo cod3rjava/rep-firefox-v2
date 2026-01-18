@@ -1,6 +1,9 @@
 // Kingfisher Rules Loader and Validator
 // Parses YAML rules from Kingfisher project and validates matches
 
+// Browser API compatibility for Firefox
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 /**
  * Validates that parentheses are balanced in a regex pattern
  */

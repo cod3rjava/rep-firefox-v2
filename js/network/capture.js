@@ -117,6 +117,24 @@ export function setupNetworkListener(onRequestCaptured) {
                 const responseStatus = request.response?.status || request.response?.statusCode || '';
                 const responseStatusText = request.response?.statusText || '';
                 const responseHeaders = request.response?.headers || [];
+                
+                // Store response content MIME type if available
+                const contentTypeHeader = responseHeaders.find(h => 
+                    h.name?.toLowerCase() === 'content-type'
+                );
+                const mimeType = contentTypeHeader?.value || '';
+                
+                // Create enhanced response structure with content type
+                const enhancedResponse = {
+                    ...(request.response || {}),
+                    status: responseStatus,
+                    statusText: responseStatusText,
+                    headers: responseHeaders,
+                    content: {
+                        ...(request.response?.content || {}),
+                        mimeType: mimeType || request.response?.content?.mimeType || ''
+                    }
+                };
 
                 const enhancedRequest = {
                     ...request,
@@ -124,7 +142,8 @@ export function setupNetworkListener(onRequestCaptured) {
                     responseEncoding: encoding || '',
                     responseStatus,
                     responseStatusText,
-                    responseHeaders
+                    responseHeaders,
+                    response: enhancedResponse
                 };
 
                 onRequestCaptured(enhancedRequest);
@@ -135,13 +154,32 @@ export function setupNetworkListener(onRequestCaptured) {
                 const responseStatusText = request.response?.statusText || '';
                 const responseHeaders = request.response?.headers || [];
 
+                // Store response content MIME type if available
+                const contentTypeHeader = responseHeaders.find(h => 
+                    h.name?.toLowerCase() === 'content-type'
+                );
+                const mimeType = contentTypeHeader?.value || '';
+                
+                // Create enhanced response structure with content type
+                const enhancedResponse = {
+                    ...(request.response || {}),
+                    status: responseStatus,
+                    statusText: responseStatusText,
+                    headers: responseHeaders,
+                    content: {
+                        ...(request.response?.content || {}),
+                        mimeType: mimeType || request.response?.content?.mimeType || ''
+                    }
+                };
+
                 const enhancedRequest = {
                     ...request,
                     responseBody: '',
                     responseEncoding: '',
                     responseStatus,
                     responseStatusText,
-                    responseHeaders
+                    responseHeaders,
+                    response: enhancedResponse
                 };
 
                 onRequestCaptured(enhancedRequest);

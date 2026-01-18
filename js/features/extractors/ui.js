@@ -517,22 +517,63 @@ export function initExtractorUI() {
                 
                 // Filter for JavaScript files from captured requests
                 console.log('[rep+] Extractor: Filtering for JavaScript files...');
+                
+                // First, let's check the structure of a few requests to debug
+                const sampleRequests = state.requests.slice(0, 5);
+                sampleRequests.forEach((req, idx) => {
+                    if (req && req.request) {
+                        const url = req.request.url || '';
+                        const hasJsExt = url.toLowerCase().endsWith('.js');
+                        console.log(`[rep+] Extractor: Sample request ${idx}:`, {
+                            url: url.substring(0, 100),
+                            hasJsExt,
+                            responseStructure: req.response ? Object.keys(req.response) : 'no response',
+                            mimeType: req.response?.content?.mimeType || 'N/A',
+                            contentTypeHeader: req.response?.headers?.find(h => h.name?.toLowerCase() === 'content-type')?.value || 'N/A',
+                            responseHeaders: req.response?.headers ? req.response.headers.length : 0
+                        });
+                    }
+                });
+                
                 const jsRequests = state.requests.filter(req => {
-                    if (!req || !req.request || !req.response) {
-                        console.log('[rep+] Extractor: Skipping request - missing req/request/response:', req?.request?.url);
+                    if (!req || !req.request) {
                         return false;
                     }
-                    const url = req.request.url.toLowerCase();
-                    // Check response structure - Firefox might have different structure
-                    const mime = req.response?.content?.mimeType?.toLowerCase() || 
-                                req.response?.headers?.find(h => h.name?.toLowerCase() === 'content-type')?.value?.toLowerCase() || '';
-                    const isJs = url.endsWith('.js') || 
-                           mime.includes('javascript') || 
+                    
+                    const url = req.request.url || '';
+                    const urlLower = url.toLowerCase();
+                    
+                    // Check URL extension first (most reliable)
+                    if (urlLower.endsWith('.js')) {
+                        console.log('[rep+] Extractor: Found JS file by extension:', url);
+                        return true;
+                    }
+                    
+                    // Check MIME type from response content
+                    let mime = '';
+                    if (req.response?.content?.mimeType) {
+                        mime = req.response.content.mimeType.toLowerCase();
+                    } else if (req.responseHeaders && Array.isArray(req.responseHeaders)) {
+                        // Check from responseHeaders (our enhanced structure)
+                        const contentTypeHeader = req.responseHeaders.find(h => 
+                            h.name?.toLowerCase() === 'content-type'
+                        );
+                        mime = contentTypeHeader?.value?.toLowerCase() || '';
+                    } else if (req.response?.headers && Array.isArray(req.response.headers)) {
+                        // Check from original response.headers
+                        const contentTypeHeader = req.response.headers.find(h => 
+                            h.name?.toLowerCase() === 'content-type'
+                        );
+                        mime = contentTypeHeader?.value?.toLowerCase() || '';
+                    }
+                    
+                    const isJs = mime.includes('javascript') || 
                            mime.includes('ecmascript') ||
-                           mime.includes('application/javascript');
+                           mime.includes('application/javascript') ||
+                           mime.includes('text/javascript');
                     
                     if (isJs) {
-                        console.log('[rep+] Extractor: Found JS file:', url, 'MIME:', mime);
+                        console.log('[rep+] Extractor: Found JS file by MIME type:', url, 'MIME:', mime);
                     }
                     
                     return isJs;
