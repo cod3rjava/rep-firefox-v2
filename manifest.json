@@ -1,0 +1,13 @@
+{
+    "manifest_version": 2,
+    "name": "rep+ (minimal test)",
+    "version": "0.0.1",
+    "description": "Minimal Firefox DevTools extension test",
+    "devtools_page": "devtools.html",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "rep-plus-test@cod3rjava.local",
+            "strict_min_version": "109.0"
+        }
+    }
+}
