@@ -432,17 +432,27 @@ export async function loadKingfisherRules(yamlContent) {
     let parsed;
     try {
         // Try to use js-yaml from window (if included in panel.html)
+        console.log('[rep+] Kingfisher: Checking for js-yaml, window:', typeof window !== 'undefined');
+        console.log('[rep+] Kingfisher: window.jsyaml:', typeof window !== 'undefined' ? window.jsyaml : 'N/A');
+        
         if (typeof window !== 'undefined' && window.jsyaml && window.jsyaml.load) {
+            console.log('[rep+] Kingfisher: Using js-yaml parser');
             parsed = window.jsyaml.load(yamlContent);
+            console.log('[rep+] Kingfisher: js-yaml parsed successfully, rules count:', parsed?.rules?.length || parsed?.length || 0);
         } else {
+            console.warn('[rep+] Kingfisher: js-yaml not available, using fallback parser');
             // Try to use a simple YAML parser for basic structures
             parsed = parseYamlRulesFallback(yamlContent);
             if (!parsed || (parsed.rules && parsed.rules.length === 0) || (Array.isArray(parsed) && parsed.length === 0)) {
+                console.error('[rep+] Kingfisher: Fallback parser could not parse YAML');
                 throw new Error('Fallback parser could not parse YAML');
             }
+            console.log('[rep+] Kingfisher: Fallback parser parsed successfully, rules count:', parsed?.rules?.length || parsed?.length || 0);
         }
     } catch (e) {
-        console.error('Failed to parse YAML rules:', e);
+        console.error('[rep+] Kingfisher: Failed to parse YAML rules:', e);
+        console.error('[rep+] Kingfisher: Error message:', e.message);
+        console.error('[rep+] Kingfisher: Error stack:', e.stack);
         return [];
     }
     

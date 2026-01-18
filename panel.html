@@ -925,6 +925,15 @@
     <script src="lib/marked.min.js"></script>
     <script src="lib/diff.min.js"></script>
     <script src="lib/js-yaml.min.js"></script>
+    <!-- Ensure js-yaml is loaded before modules -->
+    <script>
+        // Verify js-yaml is loaded
+        if (typeof window.jsyaml === 'undefined') {
+            console.error('[rep+] js-yaml not loaded!');
+        } else {
+            console.log('[rep+] js-yaml loaded successfully');
+        }
+    </script>
     <script type="module" src="js/main.js"></script>
 </body>
 
