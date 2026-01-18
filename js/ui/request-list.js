@@ -1,5 +1,6 @@
 // Request List Rendering Module
 import { state } from '../core/state.js';
+import { filterState } from '../core/state/filters.js';
 import { formatTime } from '../core/utils/format.js';
 import { escapeHtml } from '../core/utils/dom.js';
 import { getHostname } from '../core/utils/network.js';
@@ -856,8 +857,50 @@ export function filterRequests() {
             matchesTimeline = request.capturedAt <= state.timelineFilterTimestamp;
         }
 
+        // Check hide duplicates filter
+        let matchesHideDuplicates = true;
+        if (filterState.hideDuplicates) {
+            // Build signature for current request (method + URL + body if POST/PUT/PATCH)
+            const method = request.request.method.toUpperCase();
+            const url = request.request.url;
+            let body = '';
+            if (['POST', 'PUT', 'PATCH'].includes(method) && request.request.postData?.text) {
+                body = request.request.postData.text.trim();
+            }
+            const currentRequestSignature = `${method}|${url}|${body}`;
+            
+            // Check if we've already shown a request with the same signature (scan backwards for first occurrence)
+            let isDuplicate = false;
+            for (let i = 0; i < index; i++) {
+                const prevItem = items[i];
+                const prevIndex = parseInt(prevItem?.dataset.index);
+                if (prevIndex < 0 || prevIndex >= state.requests.length) continue;
+                
+                const prevRequest = state.requests[prevIndex];
+                if (!prevRequest || !prevRequest.request) continue;
+                
+                // Build signature for previous request
+                const prevMethod = prevRequest.request.method.toUpperCase();
+                const prevUrl = prevRequest.request.url;
+                let prevBody = '';
+                if (['POST', 'PUT', 'PATCH'].includes(prevMethod) && prevRequest.request.postData?.text) {
+                    prevBody = prevRequest.request.postData.text.trim();
+                }
+                const prevSignature = `${prevMethod}|${prevUrl}|${prevBody}`;
+                
+                // If signatures match, this is a duplicate
+                if (currentRequestSignature === prevSignature) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            
+            // Hide duplicates - show only first occurrence
+            matchesHideDuplicates = !isDuplicate;
+        }
+
         // All filters work together with AND logic
-        if (matchesSearch && matchesFilter && matchesStar && matchesColor && matchesTimeline) {
+        if (matchesSearch && matchesFilter && matchesStar && matchesColor && matchesTimeline && matchesHideDuplicates) {
             item.style.display = 'flex';
             visibleCount++;
         } else {

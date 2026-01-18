@@ -1,5 +1,6 @@
 // Main Entry Point
 import { state, actions } from './core/state.js';
+import { filterState } from './core/state/filters.js';
 import { events, EVENT_NAMES } from './core/events.js';
 import {
     initUI, elements,
@@ -132,40 +133,37 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.sendBtn.addEventListener('click', handleSendRequest);
     }
 
-    // Remove Duplicates Toggle
+    // Hide/Show Duplicates Toggle
     if (elements.removeDuplicatesBtn) {
-        // Load saved preference (default: true/enabled)
-        const removeDuplicatesEnabled = localStorage.getItem('rep_remove_duplicates') !== 'false';
-        updateRemoveDuplicatesButton(removeDuplicatesEnabled);
+        // Load saved preference for hiding duplicates (default: false/disabled - show all)
+        // filterState.hideDuplicates is already initialized from localStorage
+        updateHideDuplicatesButton(filterState.hideDuplicates);
         
         elements.removeDuplicatesBtn.addEventListener('click', () => {
-            const currentState = localStorage.getItem('rep_remove_duplicates') !== 'false';
+            const currentState = filterState.hideDuplicates;
             const newState = !currentState;
             
-            localStorage.setItem('rep_remove_duplicates', newState.toString());
-            updateRemoveDuplicatesButton(newState);
+            // Update filter state
+            filterState.hideDuplicates = newState;
+            localStorage.setItem('rep_hide_duplicates', newState.toString());
+            updateHideDuplicatesButton(newState);
             
-            // If enabling, remove existing duplicates
-            if (newState) {
-                const removedCount = actions.request.removeDuplicates();
-                if (removedCount > 0) {
-                    console.log(`Removed ${removedCount} duplicate request${removedCount !== 1 ? 's' : ''}`);
-                } else {
-                    console.log('No duplicates found to remove');
-                }
-            }
+            // Re-apply filters to hide/show duplicates
+            events.emit(EVENT_NAMES.UI_UPDATE_REQUEST_LIST);
+            
+            console.log(`Hide duplicates: ${newState ? 'enabled' : 'disabled'}`);
         });
     }
     
-    function updateRemoveDuplicatesButton(enabled) {
+    function updateHideDuplicatesButton(enabled) {
         if (!elements.removeDuplicatesBtn) return;
         
         if (enabled) {
             elements.removeDuplicatesBtn.classList.add('active');
-            elements.removeDuplicatesBtn.title = 'Remove duplicate requests (enabled)';
+            elements.removeDuplicatesBtn.title = 'Hide duplicate requests (enabled - showing only first occurrence)';
         } else {
             elements.removeDuplicatesBtn.classList.remove('active');
-            elements.removeDuplicatesBtn.title = 'Remove duplicate requests (disabled)';
+            elements.removeDuplicatesBtn.title = 'Hide duplicate requests (disabled - showing all requests)';
         }
     }
 

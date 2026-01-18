@@ -518,22 +518,44 @@ export function initExtractorUI() {
                 // Filter for JavaScript files from captured requests
                 console.log('[rep+] Extractor: Filtering for JavaScript files...');
                 
-                // First, let's check the structure of a few requests to debug
-                const sampleRequests = state.requests.slice(0, 5);
-                sampleRequests.forEach((req, idx) => {
+                // First, let's check ALL requests to see which ones might be JS files
+                console.log('[rep+] Extractor: Checking all requests for JS files...');
+                let potentialJsFiles = 0;
+                state.requests.forEach((req, idx) => {
                     if (req && req.request) {
                         const url = req.request.url || '';
-                        const hasJsExt = url.toLowerCase().endsWith('.js');
-                        console.log(`[rep+] Extractor: Sample request ${idx}:`, {
-                            url: url.substring(0, 100),
-                            hasJsExt,
-                            responseStructure: req.response ? Object.keys(req.response) : 'no response',
-                            mimeType: req.response?.content?.mimeType || 'N/A',
-                            contentTypeHeader: req.response?.headers?.find(h => h.name?.toLowerCase() === 'content-type')?.value || 'N/A',
-                            responseHeaders: req.response?.headers ? req.response.headers.length : 0
-                        });
+                        const urlLower = url.toLowerCase();
+                        
+                        // Check if URL contains common JS patterns (even without .js extension)
+                        const hasJsPattern = urlLower.includes('.js') || 
+                                           urlLower.includes('/static/') ||
+                                           urlLower.includes('/assets/') ||
+                                           urlLower.includes('/app/') ||
+                                           urlLower.includes('mirostatic') ||
+                                           urlLower.includes('bundle') ||
+                                           urlLower.includes('chunk');
+                        
+                        if (hasJsPattern && idx < 20) {
+                            // Log first 20 potential JS files
+                            const mimeType = req.response?.content?.mimeType || 
+                                           req.responseHeaders?.find(h => h.name?.toLowerCase() === 'content-type')?.value ||
+                                           req.response?.headers?.find(h => h.name?.toLowerCase() === 'content-type')?.value || 
+                                           'N/A';
+                            console.log(`[rep+] Extractor: Potential JS file ${idx}:`, {
+                                url: url.substring(0, 150),
+                                hasJsExt: urlLower.endsWith('.js'),
+                                mimeType: mimeType,
+                                responseStructure: req.response ? Object.keys(req.response) : 'no response',
+                                responseHeaders: req.responseHeaders ? req.responseHeaders.length : (req.response?.headers ? req.response.headers.length : 0)
+                            });
+                        }
+                        
+                        if (urlLower.endsWith('.js')) {
+                            potentialJsFiles++;
+                        }
                     }
                 });
+                console.log(`[rep+] Extractor: Found ${potentialJsFiles} requests with .js extension`);
                 
                 const jsRequests = state.requests.filter(req => {
                     if (!req || !req.request) {
@@ -545,38 +567,50 @@ export function initExtractorUI() {
                     
                     // Check URL extension first (most reliable)
                     if (urlLower.endsWith('.js')) {
-                        console.log('[rep+] Extractor: Found JS file by extension:', url);
+                        console.log('[rep+] Extractor: ✅ Found JS file by extension:', url.substring(0, 150));
                         return true;
                     }
                     
-                    // Check MIME type from response content
+                    // Check MIME type from response content - try multiple sources
                     let mime = '';
+                    
+                    // Try 1: response.content.mimeType (standard location)
                     if (req.response?.content?.mimeType) {
                         mime = req.response.content.mimeType.toLowerCase();
-                    } else if (req.responseHeaders && Array.isArray(req.responseHeaders)) {
-                        // Check from responseHeaders (our enhanced structure)
+                    }
+                    // Try 2: responseHeaders (our enhanced structure from capture.js)
+                    else if (req.responseHeaders && Array.isArray(req.responseHeaders)) {
                         const contentTypeHeader = req.responseHeaders.find(h => 
-                            h.name?.toLowerCase() === 'content-type'
+                            h && h.name && h.name.toLowerCase() === 'content-type'
                         );
                         mime = contentTypeHeader?.value?.toLowerCase() || '';
-                    } else if (req.response?.headers && Array.isArray(req.response.headers)) {
-                        // Check from original response.headers
+                    }
+                    // Try 3: response.headers (original DevTools structure)
+                    else if (req.response?.headers && Array.isArray(req.response.headers)) {
                         const contentTypeHeader = req.response.headers.find(h => 
-                            h.name?.toLowerCase() === 'content-type'
+                            h && h.name && h.name.toLowerCase() === 'content-type'
                         );
                         mime = contentTypeHeader?.value?.toLowerCase() || '';
                     }
                     
-                    const isJs = mime.includes('javascript') || 
-                           mime.includes('ecmascript') ||
-                           mime.includes('application/javascript') ||
-                           mime.includes('text/javascript');
+                    // Check for JavaScript MIME types
+                    const isJsMime = mime.includes('javascript') || 
+                                   mime.includes('ecmascript') ||
+                                   mime.includes('application/javascript') ||
+                                   mime.includes('text/javascript') ||
+                                   mime.includes('application/x-javascript');
                     
-                    if (isJs) {
-                        console.log('[rep+] Extractor: Found JS file by MIME type:', url, 'MIME:', mime);
+                    if (isJsMime) {
+                        console.log('[rep+] Extractor: ✅ Found JS file by MIME type:', url.substring(0, 150), 'MIME:', mime);
+                        return true;
                     }
                     
-                    return isJs;
+                    // Debug: log if URL looks like JS but wasn't detected
+                    if (urlLower.includes('.js') || urlLower.includes('/static/') || urlLower.includes('mirostatic')) {
+                        console.log('[rep+] Extractor: ⚠️ Suspicious URL (not JS?):', url.substring(0, 150), 'MIME:', mime || 'N/A');
+                    }
+                    
+                    return false;
                 });
                 
                 console.log('[rep+] Extractor: Found', jsRequests.length, 'JavaScript files');

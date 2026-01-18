@@ -81,8 +81,13 @@ export function setupNetworkListener(onRequestCaptured) {
         });
 
         if (isStatic) {
-            // console.log('Skipping static resource:', request.request.url);
-            return;
+            // Don't skip JS files - they're needed for the extractor
+            const urlLower = request.request.url.toLowerCase();
+            if (!urlLower.endsWith('.js')) {
+                // console.log('Skipping static resource:', request.request.url);
+                return;
+            }
+            // JS files should be captured even if they're static
         }
 
         // Store the capture time for relative time display

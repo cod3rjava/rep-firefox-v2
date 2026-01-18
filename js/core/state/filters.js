@@ -7,6 +7,7 @@ export const filterState = {
     starFilterActive: false, // Whether star filter is active
     currentColorFilter: 'all', // all, red, green, blue, etc.
     currentSearchTerm: '',
-    useRegex: false
+    useRegex: false,
+    hideDuplicates: localStorage.getItem('rep_hide_duplicates') === 'true' // Whether to hide duplicate requests (show only first occurrence)
 };
 
