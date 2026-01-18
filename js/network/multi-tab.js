@@ -106,6 +106,11 @@ export function initMultiTabCapture() {
                 isConnecting = false;
 
                 // Only retry if permissions are still granted
+                if (!browserAPI.permissions) {
+                    console.warn('[rep+] permissions API not available - not retrying');
+                    return;
+                }
+                
                 browserAPI.permissions.contains({
                     permissions: ['webRequest'],
                     origins: ['<all_urls>']
@@ -135,6 +140,13 @@ export function initMultiTabCapture() {
     }
 
     // Check initial status
+    // Note: permissions API may not be available in DevTools panel context
+    if (!browserAPI.permissions) {
+        console.warn('[rep+] permissions API not available in DevTools panel context - multi-tab capture disabled');
+        updateMultiTabIcon(false);
+        return;
+    }
+
     browserAPI.permissions.contains({
         permissions: ['webRequest'],
         origins: ['<all_urls>']
@@ -150,6 +162,11 @@ export function initMultiTabCapture() {
     // Toggle button handler
     if (multiTabBtn) {
         multiTabBtn.addEventListener('click', () => {
+            if (!browserAPI.permissions) {
+                console.warn('[rep+] permissions API not available');
+                return;
+            }
+            
             browserAPI.permissions.contains({
                 permissions: ['webRequest'],
                 origins: ['<all_urls>']
