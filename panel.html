@@ -927,12 +927,28 @@
     <script src="lib/js-yaml.min.js"></script>
     <!-- Ensure js-yaml is loaded before modules -->
     <script>
-        // Verify js-yaml is loaded
-        if (typeof window.jsyaml === 'undefined') {
-            console.error('[rep+] js-yaml not loaded!');
-        } else {
-            console.log('[rep+] js-yaml loaded successfully');
-        }
+        // Wait for js-yaml to load and verify
+        (function() {
+            if (typeof window.jsyaml === 'undefined') {
+                console.error('[rep+] ERROR: js-yaml not loaded! This will break secrets scanning!');
+                console.error('[rep+] Please check that lib/js-yaml.min.js exists and is loaded correctly.');
+            } else {
+                console.log('[rep+] ✅ js-yaml loaded successfully');
+                console.log('[rep+] js-yaml version:', window.jsyaml.version || 'unknown');
+                // Test parsing
+                try {
+                    const testYaml = 'rules:\n  - id: test\n    pattern: test';
+                    const parsed = window.jsyaml.load(testYaml);
+                    if (parsed && parsed.rules) {
+                        console.log('[rep+] ✅ js-yaml parsing test passed');
+                    } else {
+                        console.error('[rep+] ❌ js-yaml parsing test failed');
+                    }
+                } catch (e) {
+                    console.error('[rep+] ❌ js-yaml parsing test error:', e);
+                }
+            }
+        })();
     </script>
     <script type="module" src="js/main.js"></script>
 </body>
