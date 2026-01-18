@@ -3,12 +3,22 @@
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 export function setupNetworkListener(onRequestCaptured) {
+    console.log('[rep+] setupNetworkListener called');
+    console.log('[rep+] browserAPI.devtools:', browserAPI.devtools);
+    console.log('[rep+] browserAPI.devtools.network:', browserAPI.devtools?.network);
+    
+    if (!browserAPI.devtools || !browserAPI.devtools.network) {
+        console.error('[rep+] ERROR: devtools.network API not available!');
+        return;
+    }
+    
     // Get the current page URL once at setup
     let currentPageUrl = '';
     if (browserAPI.devtools && browserAPI.devtools.inspectedWindow) {
         browserAPI.devtools.inspectedWindow.eval('window.location.href', (result, isException) => {
             if (!isException && result) {
                 currentPageUrl = result;
+                console.log('[rep+] Current page URL:', currentPageUrl);
             }
         });
     }
@@ -16,9 +26,12 @@ export function setupNetworkListener(onRequestCaptured) {
     // Update page URL when navigation occurs
     browserAPI.devtools.network.onNavigated.addListener((url) => {
         currentPageUrl = url;
+        console.log('[rep+] Navigation detected:', url);
     });
 
+    console.log('[rep+] Registering onRequestFinished listener...');
     browserAPI.devtools.network.onRequestFinished.addListener((request) => {
+        console.log('[rep+] onRequestFinished triggered for:', request.request?.url);
         // Filter out data URLs or extension schemes
         if (!request.request.url.startsWith('http')) return;
 
@@ -153,6 +166,8 @@ export function setupNetworkListener(onRequestCaptured) {
             });
         }
     });
+    
+    console.log('[rep+] ✅ Network listener registered successfully');
 }
 
 export function parseRequest(rawContent, useHttps) {
