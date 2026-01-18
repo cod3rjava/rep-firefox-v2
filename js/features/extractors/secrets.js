@@ -1,6 +1,9 @@
 // Legacy SECRET_REGEXES and JS_METHOD_PATTERNS removed
 // All secret detection is now handled by Kingfisher rules
 
+// Browser API compatibility for Firefox
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 // Known false positive patterns
 const KNOWN_FALSE_POSITIVE_PATTERNS = [
     // Webpack/build tool artifacts
@@ -280,16 +283,29 @@ export async function scanForSecrets(requests, onProgress, onSecretFound) {
                         // Response body was already fetched during capture
                         content = req.responseBody || '';
                     } else if (typeof req.getContent === 'function') {
-                        // Fallback: try to get content if it's a DevTools request object
-                        content = await new Promise((resolve, reject) => {
-                            req.getContent((body, encoding) => {
-                                if (browserAPI.runtime.lastError) {
-                                    reject(new Error(browserAPI.runtime.lastError.message));
-                                } else {
-                                    resolve(body || '');
-                                }
-                    });
-                });
+                        // Firefox uses Promise-based API, Chrome uses callback-based
+                        const getContentPromise = req.getContent();
+                        if (getContentPromise && typeof getContentPromise.then === 'function') {
+                            // Firefox: Promise-based API
+                            try {
+                                const [body, encoding] = await getContentPromise;
+                                content = body || '';
+                            } catch (e) {
+                                console.warn(`Error getting content for ${req.request.url}:`, e);
+                                content = '';
+                            }
+                        } else {
+                            // Chrome: Callback-based API (fallback)
+                            content = await new Promise((resolve, reject) => {
+                                req.getContent((body, encoding) => {
+                                    if (browserAPI.runtime.lastError) {
+                                        reject(new Error(browserAPI.runtime.lastError.message));
+                                    } else {
+                                        resolve(body || '');
+                                    }
+                                });
+                            });
+                        }
                     } else {
                         processed++;
                         if (onProgress) onProgress(processed, total);

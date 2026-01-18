@@ -482,7 +482,10 @@ export function initExtractorUI() {
             }, SCAN_TIMEOUT);
 
             try {
+                console.log('[rep+] Extractor: Starting scan...');
+                
                 // Lazy load scanners
+                console.log('[rep+] Extractor: Loading modules...');
                 const [secretScanner, endpointExtractor, parameterExtractor, stateModule] = await Promise.all([
                     import('./secrets.js'),
                     import('./endpoints.js'),
@@ -490,9 +493,14 @@ export function initExtractorUI() {
                     import('../../core/state.js')
                 ]);
 
+                console.log('[rep+] Extractor: Modules loaded');
                 const { state } = stateModule;
                 
+                console.log('[rep+] Extractor: State:', state);
+                console.log('[rep+] Extractor: Total requests:', state?.requests?.length || 0);
+                
                 if (!state || !state.requests || state.requests.length === 0) {
+                    console.warn('[rep+] Extractor: No requests captured yet');
                     clearTimeout(scanTimeoutId);
                     isScanComplete = true;
                     extractorProgressText.textContent = 'No requests captured yet. Please navigate to a website first.';
@@ -508,15 +516,29 @@ export function initExtractorUI() {
                 }
                 
                 // Filter for JavaScript files from captured requests
+                console.log('[rep+] Extractor: Filtering for JavaScript files...');
                 const jsRequests = state.requests.filter(req => {
-                    if (!req || !req.request || !req.response) return false;
+                    if (!req || !req.request || !req.response) {
+                        console.log('[rep+] Extractor: Skipping request - missing req/request/response:', req?.request?.url);
+                        return false;
+                    }
                     const url = req.request.url.toLowerCase();
-                    const mime = req.response?.content?.mimeType?.toLowerCase() || '';
-                    return url.endsWith('.js') || 
+                    // Check response structure - Firefox might have different structure
+                    const mime = req.response?.content?.mimeType?.toLowerCase() || 
+                                req.response?.headers?.find(h => h.name?.toLowerCase() === 'content-type')?.value?.toLowerCase() || '';
+                    const isJs = url.endsWith('.js') || 
                            mime.includes('javascript') || 
                            mime.includes('ecmascript') ||
                            mime.includes('application/javascript');
+                    
+                    if (isJs) {
+                        console.log('[rep+] Extractor: Found JS file:', url, 'MIME:', mime);
+                    }
+                    
+                    return isJs;
                 });
+                
+                console.log('[rep+] Extractor: Found', jsRequests.length, 'JavaScript files');
 
                 if (jsRequests.length === 0) {
                     clearTimeout(scanTimeoutId);
@@ -592,6 +614,7 @@ export function initExtractorUI() {
                 if (scanAborted) return;
 
                 // Phase 1: Scan for Secrets
+                console.log('[rep+] Extractor: Starting Phase 1 - Secrets scanning');
                 updateStep('secrets', 'active');
                 extractorProgressText.textContent = 'Scanning for secrets...';
                 extractorProgressBar.style.setProperty('--progress', '10%');
@@ -601,7 +624,9 @@ export function initExtractorUI() {
                 
                 // Scan for Secrets using async function that includes Kingfisher rules
                 // onSecretFound callback will render results in real-time as they're discovered
+                console.log('[rep+] Extractor: Calling scanForSecrets with', jsRequests.length, 'JS files');
                 const secrets = await secretScanner.scanForSecrets(jsRequests, (processed, total) => {
+                    console.log('[rep+] Extractor: Secrets scan progress:', processed, '/', total);
                     if (scanAborted) return;
                     filesProcessed = processed;
                     const foundCount = currentSecretResults.length;
@@ -876,9 +901,14 @@ export function initExtractorUI() {
             } catch (e) {
                 clearTimeout(scanTimeoutId);
                 isScanComplete = true;
-                console.error('Scan failed:', e);
-                console.error('Error stack:', e.stack);
-                extractorProgressText.textContent = `Scan failed: ${e.message}. Check console for details.`;
+                console.error('[rep+] Extractor: Scan failed:', e);
+                console.error('[rep+] Extractor: Error stack:', e.stack);
+                console.error('[rep+] Extractor: Error details:', {
+                    message: e.message,
+                    name: e.name,
+                    stack: e.stack
+                });
+                extractorProgressText.textContent = `Scan failed: ${e.message}. Check Browser Toolbox console for details.`;
                 extractorProgress.style.display = 'block';
                 extractorProgressBar.style.setProperty('--progress', '100%');
             } finally {
