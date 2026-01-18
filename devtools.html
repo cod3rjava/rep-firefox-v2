@@ -2,34 +2,10 @@
 <html>
 <head>
     <title>Rep+ DevTools</title>
-    <script>
-        // This should ALWAYS execute if devtools.html loads
-        console.log('========== devtools.html SCRIPT TAG EXECUTED ==========');
-        console.log('Timestamp:', new Date().toISOString());
-        
-        // Test browser API availability
-        console.log('typeof browser:', typeof browser);
-        console.log('typeof chrome:', typeof chrome);
-        
-        // Alert to confirm (comment out after testing)
-        // alert('devtools.html loaded! Check Browser Toolbox Console.');
-    </script>
+    <!-- CSP requires external scripts, no inline scripts allowed -->
+    <script src="devtools-init.js"></script>
+    <script src="devtools.js"></script>
 </head>
 <body>
-    <script>
-        console.log('========== devtools.html BODY SCRIPT EXECUTED ==========');
-        
-        // Load devtools.js
-        const script = document.createElement('script');
-        script.src = 'devtools.js';
-        script.onload = function() {
-            console.log('devtools.js loaded successfully');
-        };
-        script.onerror = function(e) {
-            console.error('ERROR loading devtools.js:', e);
-            alert('ERROR: Failed to load devtools.js! Check Browser Toolbox Console.');
-        };
-        document.head.appendChild(script);
-    </script>
 </body>
 </html>

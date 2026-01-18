@@ -27,26 +27,7 @@
         <p>Check Browser Toolbox Console (Ctrl+Shift+Alt+I) for logs.</p>
     </div>
 
-    <script>
-        console.log('========== STEP 4: panel.html LOADED ==========');
-        console.log('Panel HTML script executed!');
-        
-        const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
-        console.log('browserAPI in panel:', browserAPI ? 'FOUND' : 'NOT FOUND');
-        
-        // Test if we can access devtools API from panel
-        if (browserAPI && browserAPI.devtools) {
-            console.log('devtools API available in panel:', !!browserAPI.devtools);
-            if (browserAPI.devtools.network) {
-                console.log('devtools.network available:', !!browserAPI.devtools.network);
-            } else {
-                console.log('NOTE: devtools.network will be available after Network panel is opened');
-            }
-        }
-        
-        // Update page content
-        document.querySelector('.status p:first-child').textContent = 
-            '✅ Panel loaded! Check Browser Toolbox Console for logs.';
-    </script>
+    <!-- All scripts must be external files due to CSP (no inline scripts allowed) -->
+    <script src="panel-init.js"></script>
 </body>
 </html>
