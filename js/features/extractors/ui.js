@@ -1,6 +1,9 @@
 // Extractor UI Module
 import { escapeHtml, copyToClipboard, downloadCSV, downloadJSON } from '../../core/utils/dom.js';
 
+// Browser API compatibility for Firefox
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 // Helper to escape strings for single-quoted shell contexts (curl)
 function shellEscapeSingle(str) {
     if (str == null) return '';
@@ -658,15 +661,30 @@ export function initExtractorUI() {
                             content = req.responseBody || '';
                         } else if (typeof req.getContent === 'function') {
                             // Fallback: try to get content if it's a DevTools request object
-                            content = await new Promise((resolve, reject) => {
-                                req.getContent((body, encoding) => {
-                                    if (browserAPI.runtime.lastError) {
-                                        reject(new Error(browserAPI.runtime.lastError.message));
-                                    } else {
-                                        resolve(body || '');
-                                    }
+                            // Firefox uses Promise-based API, Chrome uses callback-based
+                            const getContentPromise = req.getContent();
+                            if (getContentPromise && typeof getContentPromise.then === 'function') {
+                                // Firefox: Promise-based API
+                                try {
+                                    const [body, encoding] = await getContentPromise;
+                                    content = body || '';
+                                } catch (e) {
+                                    console.warn(`Error getting content for ${req.request.url}:`, e);
+                                    content = '';
+                                }
+                            } else {
+                                // Chrome: Callback-based API (fallback)
+                                content = await new Promise((resolve, reject) => {
+                                    req.getContent((body, encoding) => {
+                                        const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+                                        if (browserAPI.runtime.lastError) {
+                                            reject(new Error(browserAPI.runtime.lastError.message));
+                                        } else {
+                                            resolve(body || '');
+                                        }
+                                    });
                                 });
-                            });
+                            }
                         } else {
                             console.warn(`Cannot get content for endpoints from ${req.request.url}: no responseBody or getContent method`);
                             endpointFilesProcessed++;
@@ -719,15 +737,29 @@ export function initExtractorUI() {
                         if (req.responseBody !== undefined) {
                             content = req.responseBody || '';
                         } else if (typeof req.getContent === 'function') {
-                            content = await new Promise((resolve, reject) => {
-                                req.getContent((body, encoding) => {
-                                    if (browserAPI.runtime.lastError) {
-                                        reject(new Error(browserAPI.runtime.lastError.message));
-                                    } else {
-                                        resolve(body || '');
-                                    }
+                            // Firefox uses Promise-based API, Chrome uses callback-based
+                            const getContentPromise = req.getContent();
+                            if (getContentPromise && typeof getContentPromise.then === 'function') {
+                                // Firefox: Promise-based API
+                                try {
+                                    const [body, encoding] = await getContentPromise;
+                                    content = body || '';
+                                } catch (e) {
+                                    console.warn(`Error getting content for ${req.request.url}:`, e);
+                                    content = '';
+                                }
+                            } else {
+                                // Chrome: Callback-based API (fallback)
+                                content = await new Promise((resolve, reject) => {
+                                    req.getContent((body, encoding) => {
+                                        if (browserAPI.runtime.lastError) {
+                                            reject(new Error(browserAPI.runtime.lastError.message));
+                                        } else {
+                                            resolve(body || '');
+                                        }
+                                    });
                                 });
-                            });
+                            }
                         } else {
                             paramFilesProcessed++;
                             continue;
